@@ -1,4 +1,4 @@
-# Sketch2Real 🎨📷
+# Sketch2Image 🎨📷
 **AI-Driven Sketch-to-Photo Transformation**
 
 Welcome to **Sketch2Real**, an end-to-end deep learning pipeline that transforms black-and-white sketches into realistic color photos using cutting-edge generative models. Our project explores both traditional and modern deep learning techniques to solve the sketch-to-image translation problem.
@@ -54,7 +54,7 @@ We created a simple and modular front-end using **Streamlit**, allowing users to
 
 ```bash
 git clone https://github.com/SHOCKWAVE07/Sketch2Image.git
-cd sketch2real
+cd sketch2Image
 ```
 
 ### 2. Create Virtual Environment
