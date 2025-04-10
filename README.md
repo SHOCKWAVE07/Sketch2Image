@@ -53,7 +53,7 @@ We created a simple and modular front-end using **Streamlit**, allowing users to
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/sketch2real.git
+git clone https://github.com/SHOCKWAVE07/Sketch2Image.git
 cd sketch2real
 ```
 
