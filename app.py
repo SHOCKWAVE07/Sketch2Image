@@ -71,7 +71,7 @@ uploaded_file = st.file_uploader("Upload an image (JPG, PNG)", type=["jpg", "jpe
 if uploaded_file:
     try:
         input_image = Image.open(uploaded_file).convert("RGB")
-        st.image(input_image, caption="Uploaded Image", use_container_width=True)
+        st.image(input_image.resize((256, 256)), caption="Uploaded Image", width=256)
 
         if st.button("Generate Output"):
             with st.spinner("Generating image..."):
