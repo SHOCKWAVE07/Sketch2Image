@@ -14,7 +14,6 @@ from Models.diffusion_model import SketchToColorDiffusionLite
 from Models.traditional_model import FaceSketchColorizerLite
 from Models.vit_model import TransformerUNet
 
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 @st.cache_resource
@@ -37,21 +36,36 @@ def load_model(model_name):
 
     weights_path = download_weights(model_name)
 
+    # Model initialization
     if model_name == "GAN":
         model = Generator().to(device)
     elif model_name == "UNet":
         model = UNet().to(device)
     elif model_name == "ViT":
-        model = TransformerUNet().to(device)  
+        model = TransformerUNet().to(device)
     elif model_name == "Diffusion":
-        model = SketchToColorDiffusionLite().to(device)  
+        model = SketchToColorDiffusionLite().to(device)
     else:
         st.error("Invalid model selected.")
         st.stop()
 
+    # Weight loading with adjustments for Diffusion
     if os.path.exists(weights_path):
         try:
-            model.load_state_dict(torch.load(weights_path, map_location=device))
+            state_dict = torch.load(weights_path, map_location=device)
+            
+            # Handle Diffusion model weight mismatch
+            if model_name == "Diffusion":
+                # Expand first conv layer weights from [64, 1, 3, 3] -> [64, 3, 3, 3]
+                conv_key = "encoder.encoder.0.weight"
+                if conv_key in state_dict:
+                    old_weights = state_dict[conv_key]
+                    # Repeat weights across input channels
+                    new_weights = old_weights.repeat(1, 3, 1, 1)
+                    state_dict[conv_key] = new_weights
+                    
+            model.load_state_dict(state_dict)
+            
         except Exception as e:
             st.error(f"Failed to load weights: {e}")
             st.stop()
@@ -83,15 +97,25 @@ def preprocess_image(image, model_name):
         image = image.resize((256, 256))
         image = transforms.ToTensor()(image).unsqueeze(0)
         return image
-
-    else:
+    
+    elif model_name == "Diffusion":
+        transform = transforms.Compose([
+            transforms.Resize((256, 256)),
+            transforms.Grayscale(num_output_channels=1),  # Convert to 1 channel
+            transforms.ToTensor(),
+            # Replicate to 3 channels
+            transforms.Lambda(lambda x: x.repeat(3, 1, 1)),  # Shape [3, 256, 256]
+            transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
+        ])
+        return transform(image).unsqueeze(0).to(device)
+    
+    else:  # For GAN and others
         transform = transforms.Compose([
             transforms.Resize((256, 256)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5]*3, std=[0.5]*3)
         ])
         return transform(image).unsqueeze(0).to(device)
-
 
 def postprocess_image(tensor, model_name):
     if model_name == "UNet":
@@ -117,12 +141,16 @@ uploaded_file = st.file_uploader("Upload an image (JPG, PNG)", type=["jpg", "jpe
 if uploaded_file:
     try:
         input_image = Image.open(uploaded_file).convert("RGB")
+        
+        # Create preview image
         if model_option == "UNet":
-            preview_image = input_image.resize((178, 218))
+            preview_size = (178, 218)
         elif model_option == "ViT":
-            preview_image = input_image.resize((512, 512))
+            preview_size = (512, 512)
         else:
-            preview_image = input_image.resize((256, 256))
+            preview_size = (256, 256)
+            
+        preview_image = input_image.resize(preview_size)
         st.image(preview_image, caption="Uploaded Image", width=256)
 
         if st.button("Generate Output"):
@@ -131,21 +159,26 @@ if uploaded_file:
 
                 with torch.no_grad():
                     if model_option == "Diffusion":
-                        input_tensor = input_tensor.squeeze(0).to(device)
-                        output_tensor = model(input_tensor, 1000)
-                        output_image = postprocess_image(output_tensor, model_option)
+                        # Keep original 4D input shape [batch, channels, H, W]
+                        input_tensor = input_tensor.to(device)
+                        timesteps = torch.tensor([1000], dtype=torch.float32).to(device)
+                        
+                        # Ensure timesteps match batch size
+                        timesteps = timesteps.expand(input_tensor.size(0))  # Replicate for batch
+                        
+                        output_tensor = model(input_tensor, timesteps)
                     elif model_option == "Colorizer":
-                        output_image = model.predict(input_tensor)
+                        output_tensor = model.predict(input_tensor)
                     else:
                         output_tensor = model(input_tensor)
-                        output_image = postprocess_image(output_tensor, model_option)
-                        output_image = output_image.resize((256, 256))
+                        
+                    output_image = postprocess_image(output_tensor, model_option)
+
                 col1, col2 = st.columns(2)
                 with col1:
-                    preview_image = preview_image.resize((256, 256))
-                    st.image(preview_image, caption="Input")
+                    st.image(preview_image.resize((256, 256)), caption="Input")
                 with col2:
-                    st.image(output_image, caption="Output")
+                    st.image(output_image.resize((256, 256)), caption="Output")
 
     except Exception as e:
         st.error(f"Error: {e}")

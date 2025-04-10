@@ -4,24 +4,29 @@ import torch.nn.functional as F
 import numpy as np
 
 class TimeEmbedding(nn.Module):
-    def __init__(self, dim): super().__init__(); self.dim = dim
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
     def forward(self, t):
         half_dim = self.dim // 2
         emb = torch.exp(-np.log(10000) * torch.arange(half_dim) / (half_dim - 1)).to(t.device)
         emb = t[:, None] * emb[None, :]
         return torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
 
-
+# --- Encoder ---
 class SimpleEncoder(nn.Module):
-    def __init__(self, in_channels=1, base_channels=64):
+    def __init__(self, in_channels=3, base_channels=64):  # Change from in_channels=1 to in_channels=3
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(in_channels, base_channels, 3, padding=1), nn.ReLU(),
             nn.Conv2d(base_channels, base_channels*2, 3, padding=1), nn.ReLU(),
             nn.Conv2d(base_channels*2, base_channels*4, 3, padding=1), nn.BatchNorm2d(base_channels*4),
         )
+
     def forward(self, x): return self.encoder(x)
 
+# --- UNet Block ---
 class UNetBlock(nn.Module):
     def __init__(self, in_c, mid_c, out_c):
         super().__init__()
@@ -29,8 +34,10 @@ class UNetBlock(nn.Module):
             nn.Conv2d(in_c, mid_c, 3, padding=1), nn.ReLU(),
             nn.Conv2d(mid_c, out_c, 3, padding=1), nn.ReLU()
         )
+
     def forward(self, x): return self.block(x)
 
+# --- Scheduler (Lite UNet) ---
 class UNetScheduler(nn.Module):
     def __init__(self, base_c=64, time_emb_dim=128):
         super().__init__()
@@ -47,7 +54,7 @@ class UNetScheduler(nn.Module):
         u = F.interpolate(m, scale_factor=2, mode='nearest')
         return self.up(torch.cat([u, d], dim=1))
 
-# SimpleDecoder
+# --- Decoder ---
 class SimpleDecoder(nn.Module):
     def __init__(self, in_c, base_c=64, out_c=3):
         super().__init__()
@@ -57,10 +64,11 @@ class SimpleDecoder(nn.Module):
             nn.Conv2d(base_c, out_c, 3, padding=1), nn.Sigmoid()
         )
 
-    def forward(self, x):
-        return self.decoder(x)  # <-- Removed upsampling
+    def forward(self, x): 
+        # Remove the interpolation
+        return self.decoder(x)
 
-
+# --- Full Model ---
 class SketchToColorDiffusionLite(nn.Module):
     def __init__(self):
         super().__init__()
@@ -74,3 +82,4 @@ class SketchToColorDiffusionLite(nn.Module):
         t_emb = self.time_embed(t)
         z_denoised = self.scheduler(z, t_emb)
         return self.decoder(z_denoised)
+
