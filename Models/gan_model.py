@@ -62,3 +62,7 @@ class Generator(nn.Module):
         u5 = self.up5(torch.cat([u4, F.interpolate(d1, size=u4.shape[2:])], dim=1))
         
         return torch.tanh(self.out(u5))
+    
+
+
+
