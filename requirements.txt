@@ -4,4 +4,4 @@ Pillow
 streamlit
 gdown
 numpy
-opencv-python
+opencv-python == 4.10.0.84
