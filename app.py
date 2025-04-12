@@ -95,7 +95,7 @@ def preprocess_image(image, model_name):
     elif model_name == "Colorizer":
         image = image.convert("RGB")
         image = image.resize((256, 256))
-        image = transforms.ToTensor()(image).unsqueeze(0)
+        image = transforms.ToTensor()(image)
         return image
     
     elif model_name == "Diffusion":
@@ -171,8 +171,13 @@ if uploaded_file:
                         output_tensor = model.predict(input_tensor)
                     else:
                         output_tensor = model(input_tensor)
-                        
-                    output_image = postprocess_image(output_tensor, model_option)
+
+
+                    if model_option == "Colorizer":
+                        output_image = output_tensor  
+                    else:
+                        output_image = postprocess_image(output_tensor, model_option)
+
 
                 col1, col2 = st.columns(2)
                 with col1:
